@@ -3,16 +3,18 @@
 
 /**
  * struct dog - structure that defines a dog
- * @name: dog's name
- * @age:  dog's age
- * @owner: dog's owner
+ * @name: name of the dog
+ * @age: age of the dog
+ * @owner: owner of the dog
+ *
+ * Description: This struct stores basic information
+ * about a dog including its name, age, and owner.
  */
 struct dog
 {
-    char *name;
-    float age;
-    char *owner;
+	char *name;
+	float age;
+	char *owner;
 };
 
 #endif
-
