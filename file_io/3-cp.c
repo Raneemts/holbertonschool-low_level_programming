@@ -7,7 +7,7 @@
 #define BUF 1024
 
 /**
- * close_or_die - close a file descriptor or exit with code 100
+ * close_or_die - close fd or exit 100
  * @fd: file descriptor
  */
 static void close_or_die(int fd)
@@ -20,96 +20,66 @@ static void close_or_die(int fd)
 }
 
 /**
- * open_from - open source file for reading or exit with code 98
- * @path: source file path
- * Return: opened fd
+ * read_retry - read with EINTR retry; exit 98 on error
+ * @fd: src fd
+ * @buf: buffer
+ * @n: bytes to read
+ * @name: src filename (for message)
+ * Return: bytes read (>= 0)
  */
-static int open_from(const char *path)
+static ssize_t read_retry(int fd, char *buf, size_t n, const char *name)
 {
-	int fd = open(path, O_RDONLY);
+	ssize_t r;
 
-	if (fd == -1)
+	do {
+		r = read(fd, buf, n);
+	} while (r == -1 && errno == EINTR);
+
+	if (r == -1)
 	{
-		dprintf(STDERR_FILENO, "Error: Can't read from file %s\n", path);
+		dprintf(STDERR_FILENO, "Error: Can't read from file %s\n", name);
 		exit(98);
 	}
-	return (fd);
+	return (r);
 }
 
 /**
- * open_to - open destination file for writing or exit with code 99
- * @path: destination file path
- * Return: opened fd
+ * write_all - write all n bytes (handles short writes/EINTR), exit 99 on error
+ * @fd: dst fd
+ * @name: dst filename (for message)
+ * @buf: data
+ * @n: bytes to write
  */
-static int open_to(const char *path)
+static void write_all(int fd, const char *name, const char *buf, ssize_t n)
 {
-	int fd = open(path, O_WRONLY | O_CREAT | O_TRUNC, 0664);
+	ssize_t off = 0, w;
 
-	if (fd == -1)
-	{
-		dprintf(STDERR_FILENO, "Error: Can't write to %s\n", path);
-		exit(99);
-	}
-	return (fd);
-}
-
-/**
- * copy_loop - copy data from fd_from to fd_to using a 1KB buffer
- * @fd_from: source fd
- * @fd_to: destination fd
- * @from_name: source file name (for error messages)
- * @to_name: destination file name (for error messages)
- *
- * Exits with 98 on read error, 99 on write error.
- */
-static void copy_loop(int fd_from, int fd_to,
-		      const char *from_name, const char *to_name)
-{
-	ssize_t r, w, off;
-	char buf[BUF];
-
-	for (;;)
+	while (off < n)
 	{
 		do {
-			r = read(fd_from, buf, BUF);
-		} while (r == -1 && errno == EINTR);
+			w = write(fd, buf + off, n - off);
+		} while (w == -1 && errno == EINTR);
 
-		if (r == -1)
+		if (w == -1)
 		{
-			dprintf(STDERR_FILENO, "Error: Can't read from file %s\n",
-				from_name);
-			exit(98);
+			dprintf(STDERR_FILENO, "Error: Can't write to %s\n", name);
+			exit(99);
 		}
-		if (r == 0)
-			break;
-
-		off = 0;
-		while (off < r)
-		{
-			do {
-				w = write(fd_to, buf + off, r - off);
-			} while (w == -1 && errno == EINTR);
-
-			if (w == -1)
-			{
-				dprintf(STDERR_FILENO, "Error: Can't write to %s\n",
-					to_name);
-				exit(99);
-			}
-			off += w;
-		}
+		off += w;
 	}
 }
 
 /**
- * main - copy the content of a file to another
- * @ac: argument count
- * @av: argument vector
- * Return: 0 on success, exits with 97/98/99/100 on error
+ * main - copy file_from to file_to (1 KiB buffer)
+ * @ac: argc
+ * @av: argv
+ * Return: 0 on success
  */
 int main(int ac, char **av)
 {
 	int f_from, f_to;
+	ssize_t r;
+	char buf[BUF];
 
 	if (ac != 3)
 	{
@@ -117,10 +87,28 @@ int main(int ac, char **av)
 		exit(97);
 	}
 
-	f_from = open_from(av[1]);
-	f_to = open_to(av[2]);
+	f_from = open(av[1], O_RDONLY);
+	if (f_from == -1)
+	{
+		dprintf(STDERR_FILENO, "Error: Can't read from file %s\n", av[1]);
+		exit(98);
+	}
 
-	copy_loop(f_from, f_to, av[1], av[2]);
+	r = read_retry(f_from, buf, BUF, av[1]);
+
+	f_to = open(av[2], O_WRONLY | O_CREAT | O_TRUNC, 0664);
+	if (f_to == -1)
+	{
+		dprintf(STDERR_FILENO, "Error: Can't write to %s\n", av[2]);
+		close_or_die(f_from);
+		exit(99);
+	}
+
+	if (r > 0)
+		write_all(f_to, av[2], buf, r);
+
+	while ((r = read_retry(f_from, buf, BUF, av[1])) > 0)
+		write_all(f_to, av[2], buf, r);
 
 	close_or_die(f_from);
 	close_or_die(f_to);
