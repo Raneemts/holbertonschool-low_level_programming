@@ -4,10 +4,10 @@
 #include <unistd.h>
 #include <errno.h>
 
-#define BUF_SIZE 1024
+#define BUF 1024
 
 /**
- * close_or_die - closes a file descriptor or exits with code 100
+ * close_or_die - close a file descriptor or exit with code 100
  * @fd: file descriptor
  */
 static void close_or_die(int fd)
@@ -20,50 +20,64 @@ static void close_or_die(int fd)
 }
 
 /**
- * main - copies the content of a file to another file
- * @ac: argument count
- * @av: argument vector
- *
- * Return: 0 on success, exits with 97/98/99/100 on error
+ * open_from - open source file for reading or exit with code 98
+ * @path: source file path
+ * Return: opened fd
  */
-int main(int ac, char **av)
+static int open_from(const char *path)
 {
-	int fd_from, fd_to;
-	ssize_t r, w, off;
-	char buf[BUF_SIZE];
+	int fd = open(path, O_RDONLY);
 
-	if (ac != 3)
+	if (fd == -1)
 	{
-		dprintf(STDERR_FILENO, "Usage: cp file_from file_to\n");
-		exit(97);
-	}
-
-	fd_from = open(av[1], O_RDONLY);
-	if (fd_from == -1)
-	{
-		dprintf(STDERR_FILENO, "Error: Can't read from file %s\n", av[1]);
+		dprintf(STDERR_FILENO, "Error: Can't read from file %s\n", path);
 		exit(98);
 	}
+	return (fd);
+}
 
-	fd_to = open(av[2], O_WRONLY | O_CREAT | O_TRUNC, 0664);
-	if (fd_to == -1)
+/**
+ * open_to - open destination file for writing or exit with code 99
+ * @path: destination file path
+ * Return: opened fd
+ */
+static int open_to(const char *path)
+{
+	int fd = open(path, O_WRONLY | O_CREAT | O_TRUNC, 0664);
+
+	if (fd == -1)
 	{
-		dprintf(STDERR_FILENO, "Error: Can't write to %s\n", av[2]);
-		close_or_die(fd_from);
+		dprintf(STDERR_FILENO, "Error: Can't write to %s\n", path);
 		exit(99);
 	}
+	return (fd);
+}
 
-	while (1)
+/**
+ * copy_loop - copy data from fd_from to fd_to using a 1KB buffer
+ * @fd_from: source fd
+ * @fd_to: destination fd
+ * @from_name: source file name (for error messages)
+ * @to_name: destination file name (for error messages)
+ *
+ * Exits with 98 on read error, 99 on write error.
+ */
+static void copy_loop(int fd_from, int fd_to,
+		      const char *from_name, const char *to_name)
+{
+	ssize_t r, w, off;
+	char buf[BUF];
+
+	for (;;)
 	{
 		do {
-			r = read(fd_from, buf, BUF_SIZE);
+			r = read(fd_from, buf, BUF);
 		} while (r == -1 && errno == EINTR);
 
 		if (r == -1)
 		{
-			dprintf(STDERR_FILENO, "Error: Can't read from file %s\n", av[1]);
-			close_or_die(fd_from);
-			close_or_die(fd_to);
+			dprintf(STDERR_FILENO, "Error: Can't read from file %s\n",
+				from_name);
 			exit(98);
 		}
 		if (r == 0)
@@ -78,16 +92,37 @@ int main(int ac, char **av)
 
 			if (w == -1)
 			{
-				dprintf(STDERR_FILENO, "Error: Can't write to %s\n", av[2]);
-				close_or_die(fd_from);
-				close_or_die(fd_to);
+				dprintf(STDERR_FILENO, "Error: Can't write to %s\n",
+					to_name);
 				exit(99);
 			}
 			off += w;
 		}
 	}
+}
 
-	close_or_die(fd_from);
-	close_or_die(fd_to);
+/**
+ * main - copy the content of a file to another
+ * @ac: argument count
+ * @av: argument vector
+ * Return: 0 on success, exits with 97/98/99/100 on error
+ */
+int main(int ac, char **av)
+{
+	int f_from, f_to;
+
+	if (ac != 3)
+	{
+		dprintf(STDERR_FILENO, "Usage: cp file_from file_to\n");
+		exit(97);
+	}
+
+	f_from = open_from(av[1]);
+	f_to = open_to(av[2]);
+
+	copy_loop(f_from, f_to, av[1], av[2]);
+
+	close_or_die(f_from);
+	close_or_die(f_to);
 	return (0);
 }
