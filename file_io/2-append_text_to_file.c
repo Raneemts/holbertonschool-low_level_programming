@@ -1,4 +1,3 @@
-#include"main.h"
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/uio.h>
@@ -17,13 +16,11 @@ int append_text_to_file(const char *filename, char *text_content)
 	int fdo, fdw, len = 0;
 
 	if (filename == NULL)
-		return (0);
-
-	fdo = open(filename, O_RDWR | O_APPEND);
-
-	if (fdo < 0)
 		return (-1);
 
+	fdo = open(filename, O_RDWR | O_APPEND);
+	if (fdo < 0)
+		return (-1);
 	if (text_content == NULL)
 	{
 		close(fdo);
@@ -35,7 +32,6 @@ int append_text_to_file(const char *filename, char *text_content)
 
 	fdw = write(fdo, text_content, len);
 	close(fdo);
-
 	if (fdw < 0)
 		return (-1);
 
