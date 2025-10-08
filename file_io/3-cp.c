@@ -39,28 +39,25 @@ int main(int argc, char *argv[])
 		exit(99);
 	}
 
-	while (_EOF)
-	{
-		_EOF = read(from_fd, buffer, 1024);
-		if (_EOF < 0)
-		{
-			dprintf(STDERR_FILENO, "Error: Can't read from file %s\n", argv[1]);
-			safe_close(from_fd);
-			safe_close(to_fd);
-			exit(98);
-		}
-		else if (_EOF == 0)
-			break;
-		bytes_read += _EOF;
-		error = write(to_fd, buffer, _EOF);
-		if (error < 0)
-		{
-			dprintf(STDERR_FILENO, "Error: Can't write to %s\n", argv[2]);
-			safe_close(from_fd);
-			safe_close(to_fd);
-			exit(99);
-		}
-	}
+	while ((r = read(from_fd, buffer, 1024)) > 0)
+        {
+    if (write(to_fd, buffer, r) != r)
+    {
+        dprintf(STDERR_FILENO, "Error: Can't write to %s\n", argv[2]);
+        safe_close(from_fd);
+        safe_close(to_fd);
+        exit(99);
+    }
+}
+
+if (r == -1)
+{
+    dprintf(STDERR_FILENO, "Error: Can't read from file %s\n", argv[1]);
+    safe_close(from_fd);
+    safe_close(to_fd);
+    exit(98);
+}
+
 	error = safe_close(to_fd);
 	if (error < 0)
 	{
