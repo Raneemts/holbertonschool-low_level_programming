@@ -7,8 +7,8 @@
 #define BUF_SIZE 1024
 
 /**
- * close_or_die - close a file descriptor or exit with code 100
- * @fd: file descriptor to close
+ * close_or_die - closes a file descriptor or exits with code 100
+ * @fd: file descriptor
  */
 static void close_or_die(int fd)
 {
@@ -20,7 +20,7 @@ static void close_or_die(int fd)
 }
 
 /**
- * main - copy the content of one file to another
+ * main - copies the content of a file to another file
  * @ac: argument count
  * @av: argument vector
  *
